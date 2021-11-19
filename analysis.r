@@ -1,62 +1,58 @@
-#pckgs <- c("Quandl", "Sweep", "tidyverse", "tidyquant", "ggplot", "forcats", "stringr")
-#install.packages(pckgs)
 
 library(Quandl)
 library(tidyverse)
 library(ggplot2)
 library(tidyquant)
-library(timetk)
-library(forcats)
-library(stringr)
 library(gganimate)
 library(plyr)
-library(stringr)
-library(gridExtra)
+
+
 
 # API KEY FOR QUANDL 2MrJyxVvPtkwJ2JJ6TeA
 rm(list = ls())
 Quandl.api_key("2MrJyxVvPtkwJ2JJ6TeA")
 
 #get the dataset
-ICICI = Quandl("NSE/ICICIBANK", collapse = "daily", start_date = "2018-09-01", type = "raw")
-PNB= Quandl("NSE/PNB",collapse="daily",start_date="2018-09-01",type="raw")
-Axis=Quandl("NSE/AXISBANK",collapse="daily",start_date="2018-09-01",type="raw")
-Canara=Quandl("NSE/CANBK",collapse="daily",start_date="2018-09-01",type="raw")
-BOB=Quandl("NSE/BANKBARODA",collapse="daily",start_date="2018-09-01",type="raw")
-SBI=Quandl("NSE/SBIN",collapse="daily",start_date="2018-09-01",type="raw")
+TCS = Quandl("NSE/TCS", collapse = "daily", start_date = "2017-01-01", type = "raw")
+WIPRO= Quandl("NSE/WIPRO",collapse="daily",start_date="2017-01-01",type="raw")
+HCL=Quandl("NSE/HCLTECH",collapse="daily",start_date="2017-01-01",type="raw")
+INFOSYS=Quandl("NSE/INFY",collapse="daily",start_date="2017-01-01",type="raw")
+TECHM=Quandl("NSE/TECHM",collapse="daily",start_date="2017-01-01",type="raw")
+LTI=Quandl("NSE/LTI",collapse="daily",start_date="2017-01-01",type="raw")
 
 #add a stock column
-ICICI<-cbind(ICICI,Stock="")
-PNB<-cbind(PNB,Stock="")
-Axis<-cbind(Axis,Stock="")
-SBI<-cbind(SBI,Stock="")
-Canara<-cbind(Canara,Stock="")
-BOB<-cbind(BOB,Stock="")
+TCS<-cbind(TCS,Stock="")
+WIPRO<-cbind(WIPRO,Stock="")
+HCL<-cbind(HCL,Stock="")
+INFOSYS<-cbind(INFOSYS,Stock="")
+TECHM<-cbind(TECHM,Stock="")
+LTI<-cbind(LTI,Stock="")
 
 # Paste the stock name in stock column
 # for plotting purpose
-ICICI$Stock<-paste(ICICI$Stock,"ICICI",sep="")
-PNB$Stock<-paste(PNB$Stock,"PNB",sep="")
-Axis$Stock<-paste(Axis$Stock,"Axis",sep="")
-SBI$Stock<-paste(SBI$Stock,"SBI",sep="")
-Canara$Stock<-paste(Canara$Stock,"Canara",sep="")
-BOB$Stock<-paste(BOB$Stock,"BOB",sep="")
+TCS$Stock<-paste(TCS$Stock,"TCS",sep="")
+WIPRO$Stock<-paste(WIPRO$Stock,"WIPRO",sep="")
+HCL$Stock<-paste(HCL$Stock,"HCL",sep="")
+INFOSYS$Stock<-paste(INFOSYS$Stock,"INFOSYS",sep="")
+TECHM$Stock<-paste(TECHM$Stock,"TECHM",sep="")
+LTI$Stock<-paste(LTI$Stock,"LTI",sep="")
+
 
 ## Consolidate under one dataset
-Master_Data = rbind(ICICI,PNB,Axis,SBI,Canara,BOB)
+Master_Data = rbind(TCS, WIPRO, HCL, INFOSYS, TECHM, LTI)
 
 #Convert the dates into character in order to split the column into "Y" "m" "dd"" columns
 Master_Data$Date = as.character(Master_Data$Date)
 #split the date column by - and create a list for the same
 list = strsplit(Master_Data$Date, "-")
 
-library(plyr)
+
 # to return results of the above list in a data frame
 Master_date = ldply(list)
 #changing the column name of the master date dataframe
 colnames(Master_date) = c("Year", "Month", "Day")
 
-#now we'll column bind the above master_date datafrom to the master data
+#now we'll column bind the above master_date data to the Master_data
 Master_Data<-cbind(Master_Data,Master_date)
 names(Master_Data)
 
@@ -66,6 +62,25 @@ Master_Data$`Total Trade Quantity` = Master_Data$`Total Trade Quantity`/100000
 # Convert the Date to as.Date()
 Master_Data$Date<-as.Date(Master_Data$Date)
 
+Master_Data$Month<-as.integer(Master_Data$Month)
+Master_Data$Year<-as.integer(Master_Data$Year)
+Master_Data$Day<-as.integer(Master_Data$Day)
+
+
+
+P<- Master_Data %>% ggplot(aes(factor(Stock), Close, color=Stock)) +
+  geom_jitter(aes(size = Close, colour=Stock, alpha = 0.03)) +
+  ylim(0,3000)+
+  labs(title = "IT Stock Yearly Prices", x = "IT Company", y= "Close Price") +
+  theme(panel.border = element_blank(),
+        panel.grid.major = element_line(colour = "grey61", size = 0.5, linetype = "dotted"),
+        panel.grid.minor = element_blank(),
+        axis.line=element_line(colour="black"),
+        plot.title = element_text(hjust = 0.5,size=18,colour="indianred4"),
+        legend.position = "right")+
+        transition_reveal(Year)
+
+P
 
 ## Group By Stock
 
@@ -116,6 +131,7 @@ Master_Data_High_Week <- Master_Data_High %>%
 
 
 #similarly doing to compute weekly low prices
+
 Master_Data_Low_Week<-Master_Data_Low%>%
   tq_transmute(
     select  = Dev_Low,
@@ -124,6 +140,7 @@ Master_Data_Low_Week<-Master_Data_Low%>%
     na.rm = TRUE,
     col_rename = "Dev_Low_Mean"
   )
+
 
 ##Visualization of density distribution of high Price
 High<-Master_Data_High_Week%>%ggplot(aes(x=Dev_High_Mean,color=Stock))+
@@ -161,4 +178,6 @@ Low
 
 ##arrange both the graphs in one plot
 grid.arrange(High, Low)
+
+
 
