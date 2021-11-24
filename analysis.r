@@ -8,6 +8,8 @@ library(plyr)
 
 
 
+
+
 # API KEY FOR QUANDL 2MrJyxVvPtkwJ2JJ6TeA
 rm(list = ls())
 Quandl.api_key("2MrJyxVvPtkwJ2JJ6TeA")
@@ -20,7 +22,7 @@ INFOSYS=Quandl("NSE/INFY",collapse="daily",start_date="2017-01-01",type="raw")
 TECHM=Quandl("NSE/TECHM",collapse="daily",start_date="2017-01-01",type="raw")
 LTI=Quandl("NSE/LTI",collapse="daily",start_date="2017-01-01",type="raw")
 
-#add a stock column
+#adding the stock column for future use while plotting the graph
 TCS<-cbind(TCS,Stock="")
 WIPRO<-cbind(WIPRO,Stock="")
 HCL<-cbind(HCL,Stock="")
@@ -29,7 +31,7 @@ TECHM<-cbind(TECHM,Stock="")
 LTI<-cbind(LTI,Stock="")
 
 # Paste the stock name in stock column
-# for plotting purpose
+# again usefull for plotting purpose
 TCS$Stock<-paste(TCS$Stock,"TCS",sep="")
 WIPRO$Stock<-paste(WIPRO$Stock,"WIPRO",sep="")
 HCL$Stock<-paste(HCL$Stock,"HCL",sep="")
@@ -38,37 +40,37 @@ TECHM$Stock<-paste(TECHM$Stock,"TECHM",sep="")
 LTI$Stock<-paste(LTI$Stock,"LTI",sep="")
 
 
-## Consolidate under one dataset
-Master_Data = rbind(TCS, WIPRO, HCL, INFOSYS, TECHM, LTI)
+# Consolidate under one master dataset
+all_stocks = rbind(TCS, WIPRO, HCL, INFOSYS, TECHM, LTI)
 
 #Convert the dates into character in order to split the column into "Y" "m" "dd"" columns
-Master_Data$Date = as.character(Master_Data$Date)
+all_stocks$Date = as.character(all_stocks$Date)
 #split the date column by - and create a list for the same
-list = strsplit(Master_Data$Date, "-")
+date_split = strsplit(all_stocks$Date, "-")
 
 
 # to return results of the above list in a data frame
-Master_date = ldply(list)
+Master_date = ldply(date_split)
 #changing the column name of the master date dataframe
 colnames(Master_date) = c("Year", "Month", "Day")
 
 #now we'll column bind the above master_date data to the Master_data
-Master_Data<-cbind(Master_Data,Master_date)
-names(Master_Data)
+all_stocks<-cbind(all_stocks,Master_date)
+names(all_stocks)
 
 # Change the scale for Traded Quantity
-Master_Data$`Total Trade Quantity` = Master_Data$`Total Trade Quantity`/100000
+all_stocks$`Total Trade Quantity` = all_stocks$`Total Trade Quantity`/100000
 
 # Convert the Date to as.Date()
-Master_Data$Date<-as.Date(Master_Data$Date)
+all_stocks$Date<-as.Date(all_stocks$Date)
 
-Master_Data$Month<-as.integer(Master_Data$Month)
-Master_Data$Year<-as.integer(Master_Data$Year)
-Master_Data$Day<-as.integer(Master_Data$Day)
+all_stocks$Month<-as.integer(all_stocks$Month)
+all_stocks$Year<-as.integer(all_stocks$Year)
+all_stocks$Day<-as.integer(all_stocks$Day)
 
 
 
-P<- Master_Data %>% ggplot(aes(factor(Stock), Close, color=Stock)) +
+P<- all_stocks %>% ggplot(aes(factor(Stock), Close, color=Stock)) +
   geom_jitter(aes(size = Close, colour=Stock, alpha = 0.03)) +
   ylim(0,3000)+
   labs(title = "IT Stock Yearly Prices", x = "IT Company", y= "Close Price") +
@@ -82,17 +84,13 @@ P<- Master_Data %>% ggplot(aes(factor(Stock), Close, color=Stock)) +
 
 P
 
-## Group By Stock
 
-Master_Data<-Master_Data%>%
-  tibble::as_tibble()%>%
-  group_by(Stock)
 
 ## Visualization for month-wise daily stock prices
 ##facet_wrap is used to group the plots by respective stocks
 ##and also display in a row-col format
 
-ggplot(Master_Data, aes(x = Date, y = Close, color = Stock)) +
+ggplot(all_stocks, aes(x = Date, y = Close, color = Stock)) +
 geom_point() +
 labs(title = "Daily Close Price", x = "Month",y="Close Price") +
 facet_wrap(~ Stock, ncol = 3, scale = "free_y") +
@@ -113,8 +111,8 @@ theme(
 #appended to the master_data and stored in new variables --> Master_Data_High & Master_Data_Low
 #-------------------------------------------------------------------------------
 #the motive is to get the price range which will be useful for intraday trading 
-Master_Data_High <- mutate(Master_Data , Dev_High = High-Open)
-Master_Data_Low <-mutate(Master_Data , Dev_Low = Open-Low)
+Master_Data_High <- mutate(all_stocks , Dev_High = High-Open)
+Master_Data_Low <-mutate(all_stocks , Dev_Low = Open-Low)
 #computing the weekly high prices
 #for this we use tq_transmute from the tidyquant package
 #this method adds new variables to and existing dataset and
@@ -177,7 +175,41 @@ Low<-Master_Data_Low_Week%>%ggplot(aes(x=Dev_Low_Mean,color=Stock))+
 Low
 
 ##arrange both the graphs in one plot
-grid.arrange(High, Low)
+#grid.arrange(High, Low)
+
+#visualizing the volatility of the stock using bollinger bands
+end<-ymd("2019-01-04")
+start<-ymd("2017-01-04")
+
+bollinger_tcs = all_stocks %>%filter(Stock == "TCS")%>% ggplot(aes(x = Date, y = Close))+
+  geom_line(size =1)+
+  geom_bbands(aes(high = High, low = Low, close = Close), ma_fun = SMA,n = 30,size=0.75,
+             color_ma = "royalblue4", color_bands = "red1")+
+  labs(title = "Bollinger Band TCS", x = "Date", y = "Price")+
+  theme(axis.title.x = element_text(hjust = 0.5, size = 16)
+        ,axis.title.y = element_text(hjust = 0.5, size = 16)
+        ,plot.title = element_text(hjust = 0.5, color = "navyblue", size = 20)
+        ,axis.title = element_text(color = 'navyblue', size = 20))
+
+bollinger_tcs
+
+
+#visualizing the volatility of all the stocks
+bollinger_all = all_stocks %>%filter(Stock == "TCS"|Stock == "WIPRO"|Stock =="LTI"|Stock == "HCL"|Stock == "TECHM"|Stock == "INFOSYS")%>% ggplot(aes(x = Date, y = Close))+
+  geom_line(size =1)+
+  facet_wrap(~Stock, scales = "free_y", ncol = 3)+
+  geom_bbands(aes(high = High, low = Low, close = Close), ma_fun = SMA, sd=2,n = 20,size=0.75,
+              color_ma = "royalblue4", color_bands = "red1")+
+  coord_x_date(xlim = c(start, end), expand = TRUE)+
+  labs(title = "Bollinger Bands", x = "Date", y = "Price")+
+  theme(axis.title.x = element_text(hjust = 0.5, size = 16)
+        ,axis.title.y = element_text(hjust = 0.5, size = 16)
+        ,plot.title = element_text(hjust = 0.5, color = "navyblue", size = 20)
+        ,axis.title = element_text(color = 'navyblue', size = 20))
+
+bollinger_all
+
+
 
 
 
