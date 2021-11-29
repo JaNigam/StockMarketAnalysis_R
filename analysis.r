@@ -1,12 +1,11 @@
 
 library(Quandl)
 library(tidyverse)
-library(ggplot2)
 library(tidyquant)
 library(gganimate)
 library(plyr)
-
-
+library(forecast)
+library(tseries)
 
 
 
@@ -69,7 +68,6 @@ all_stocks$Year<-as.integer(all_stocks$Year)
 all_stocks$Day<-as.integer(all_stocks$Day)
 
 
-
 P<- all_stocks %>% ggplot(aes(factor(Stock), Close, color=Stock)) +
   geom_jitter(aes(size = Close, colour=Stock, alpha = 0.03)) +
   ylim(0,3000)+
@@ -111,13 +109,19 @@ theme(
 #appended to the master_data and stored in new variables --> Master_Data_High & Master_Data_Low
 #-------------------------------------------------------------------------------
 #the motive is to get the price range which will be useful for intraday trading 
-Master_Data_High <- mutate(all_stocks , Dev_High = High-Open)
-Master_Data_Low <-mutate(all_stocks , Dev_Low = Open-Low)
+
+#used for plotting the 
+all_stocks<-all_stocks%>%
+  tibble::as_tibble()%>%
+  group_by(Stock)
+all_stocks_high <- mutate(all_stocks , Dev_High = High-Open)
+all_stocks_low <-mutate(all_stocks , Dev_Low = Open-Low)
+
 #computing the weekly high prices
 #for this we use tq_transmute from the tidyquant package
 #this method adds new variables to and existing dataset and
 #returns only newly created columns, typically used when periodicity changes
-Master_Data_High_Week <- Master_Data_High %>%
+all_stocks_high_week <- all_stocks_high %>%
   tq_transmute(
     select     = Dev_High,
     mutate_fun = apply.weekly, 
@@ -130,7 +134,7 @@ Master_Data_High_Week <- Master_Data_High %>%
 
 #similarly doing to compute weekly low prices
 
-Master_Data_Low_Week<-Master_Data_Low%>%
+all_stocks_low_week<-all_stocks_low%>%
   tq_transmute(
     select  = Dev_Low,
     mutate_fun = apply.weekly,
@@ -140,8 +144,9 @@ Master_Data_Low_Week<-Master_Data_Low%>%
   )
 
 
+
 ##Visualization of density distribution of high Price
-High<-Master_Data_High_Week%>%ggplot(aes(x=Dev_High_Mean,color=Stock))+
+High<-all_stocks_high_week%>%ggplot(aes(x=Dev_High_Mean,color=Stock))+
   geom_dotplot(binwidth=0.50,aes(fill=Stock))+
   xlim(0,10)+
   labs(title="Distribution of High Price Deviation from Open Price",x="Weekly Mean Deviation")+
@@ -157,7 +162,7 @@ High<-Master_Data_High_Week%>%ggplot(aes(x=Dev_High_Mean,color=Stock))+
   )
 High
 
-Low<-Master_Data_Low_Week%>%ggplot(aes(x=Dev_Low_Mean,color=Stock))+
+Low<-all_stocks_low_week%>%ggplot(aes(x=Dev_Low_Mean,color=Stock))+
   geom_dotplot(binwidth=0.50,aes(fill=Stock))+
   xlim(0,10)+
   labs(title="Distribution of Weekly Low Price Deviation from Open Price",x="Weekly Mean Deviation")+
@@ -210,6 +215,148 @@ bollinger_all = all_stocks %>%filter(Stock == "TCS"|Stock == "WIPRO"|Stock =="LT
 bollinger_all
 
 
+################# TCS ARIMA #########################################
+#data
+TCS_NEW = Quandl("NSE/TCS", collapse = "daily", start_date = "2017-01-01", type = "raw")
+tcs_df = map_df(select(TCS_NEW, "Date", "Close"), rev)
 
 
+#plot
+plot(tcs_df, type = "l")
+plot(y = tcs_df$Close,x = tcs_df$Date, type = 'l')
+plot(diff(tcs_df$Close), type = 'l', main = "tcs differenced")
+
+time_series_tcs = ts(tcs_df$Close, frequency = 30)
+ddtcs = decompose(time_series_tcs, "multiplicative")
+plot(ddtcs)
+
+#ARIMA
+acf(diff(tcs_df$Close), main = "tcs acf plot")#p = 1
+pacf(diff(tcs_df$Close), main = "tcs pacf plot")#q = 1
+
+#MODEL FITTING
+tcs_model = arima(log(tcs_df$Close), c(1,1,1), seasonal=list(order=c(1,1,1), period=7))
+tcs_model
+tcs_model$residual 
+model1 = 2.178^(tcs_model$residual)
+
+pred_tcs=predict(tcs_model, n.ahead = 7)
+pred1=2.718^pred_tcs$pred
+pred1
+
+plot(tcs_df$Close, type = 'l', xlim = c(450, 520), main = "7- Day prediction graph for TCS", ylab = 'Close Price', xlab = "time frame")
+lines(pred1, type = 'l', col = 'red')
+
+
+################# TECHM ARIMA #########################################
+
+TECHM_NEW = Quandl("NSE/TECHM", collapse = "daily", start_date = "2017-01-01", type = "raw")
+techm_df = map_df(select(TECHM_NEW, "Date", "Close"), rev)
+
+#plot
+plot(techm_df, type = "l", main = "Tech Mahindra Stock Price")
+plot(diff(techm_df$Close), type = 'l', main = "TECHM differenced")
+
+time_series_techm = ts(techm_df$Close, frequency = 30)
+ddtcs = decompose(time_series_techm, "multiplicative")
+plot(ddtcs)
+
+#ARIMA
+acf(diff(techm_df$Close), main = "TECHM acf plot")#p = 0
+pacf(diff(techm_df$Close), main = "TECHM pacf plot")#q = 1
+
+#MODEL FITTING
+techm_model = arima(log(techm_df$Close), c(0,1,0), seasonal=list(order=c(0,1,0), period=7))
+techm_model
+techm_model$residual 
+model2 = 2.178^(techm_model$residual)
+
+pred_techm = predict(techm_model, n.ahead = 4)
+pred2=2.718^pred_techm$pred
+pred2
+
+plot(techm_df$Close, type = 'l', xlim = c(450, 520), main = "7- Day prediction graph for TECHM", ylab = 'Close Price', xlab = "time frame")
+lines(pred2, type = 'l', col = 'red')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#plot
+plot(tcs_df, type = "l")
+plot(y = tcs_df$Close,x = tcs_df$Date, type = 'l')
+plot(diff(tcs_df$Close), type = 'l', main = "tcs differenced")
+
+
+#ARIMA
+acf(diff(tcs_df$Close), main = "tcs acf plot")#p = 1
+pacf(diff(tcs_df$Close), main = "tcs pacf plot")#q = 1
+
+#MODEL FITTING
+time_series_tcl = ts(hcl_df$Close, frequency = 30)
+ddhcl = decompose(time_series_tcl, "multiplicative")
+plot(ddhcl)
+
+fit_tcs = arima(tcs_df$Close, order = c(1, 1, 1))
+tcs_pred = predict(fit_tcs, n.ahead = 10*12)
+tcs_pred
+
+fit_tcs1 = auto.arima(tcs_df$Close)
+tcs_pred1 = predict(fit_tcs1, n.ahead = 10*12)
+tcs_pred1
+
+fc2 = forecast(fit_tcs1, h = 10)
+plot(fc2)
+
+
+newdf = ts(tcs_df$Close, frequency = 12)
+dd = decompose(newdf, "multiplicative")
+plot(dd)
+
+acf(tcs_df)
+acf(diff(log(tcs_df$Close)))
+
+
+
+model = arima(log(tcs_df$Close), c(1,1,1), seasonal=list(order=c(1,1,1), period=12))
+model
+model$residual 
+model1 = 2.178^(model$residual)
+
+pred=predict(model, n.ahead = 30)
+pred1=2.718^pred$pred
+pred1
+
+plot(tcs_df$Close, type = 'l')
+lines(pred1, type = 'l', col = 'red')
+
+###############################################
+###############################################
+TECHM_NEW = Quandl("NSE/TECHM", collapse = "daily", start_date = "2017-01-01", type = "raw")
+techm_df = map_df(select(TECHM_NEW, "Date", "Close"), rev)
+
+plot(techm_df, type = 'l')
+
+acf(diff(techm_df$Close))#p = 0
+pacf(diff(techm_df$Close))#q = 0
+
+fit_techm = auto.arima(log(techm_df$Close))
+fit_techm$residual 
+mode = 2.178^(model$residual)
+
+
+write.csv(techm_df, "techm.csv")
 
